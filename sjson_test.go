@@ -3,6 +3,7 @@ package sjson
 import (
 	"encoding/hex"
 	"fmt"
+	"math"
 	"math/rand"
 	"testing"
 	"time"
@@ -349,5 +350,44 @@ func TestIssue61(t *testing.T) {
 	json1, _ := Set(json, "@context.@vocab", "newval")
 	if gjson.Get(json1, "@context.@vocab").String() != "newval" {
 		t.Fail()
+	}
+}
+
+func TestNonFiniteFloat(t *testing.T) {
+	const input = `{"rate":0}`
+	values := []interface{}{
+		math.NaN(),
+		math.Inf(1),
+		math.Inf(-1),
+		float32(math.NaN()),
+		float32(math.Inf(1)),
+		float32(math.Inf(-1)),
+	}
+	for _, v := range values {
+		out, err := Set(input, "rate", v)
+		if err == nil {
+			t.Fatalf("Set(%v): expected error, got out=%s", v, out)
+		}
+		if out != "" {
+			t.Fatalf("Set(%v): expected empty result on error, got %q", v, out)
+		}
+		// in-place path must also reject without mutating the buffer
+		buf := []byte(input)
+		orig := string(buf)
+		bout, err := SetBytesOptions(buf, "rate", v, &Options{Optimistic: true, ReplaceInPlace: true})
+		if err == nil {
+			t.Fatalf("SetBytesOptions(%v): expected error, got out=%s", v, bout)
+		}
+		if string(buf) != orig {
+			t.Fatalf("SetBytesOptions(%v): mutated input on error: %q", v, buf)
+		}
+	}
+	// finite floats still work
+	out, err := Set(input, "rate", 1.5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != `{"rate":1.5}` {
+		t.Fatalf("finite float: got %s", out)
 	}
 }

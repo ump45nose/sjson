@@ -3,6 +3,7 @@ package sjson
 
 import (
 	jsongo "encoding/json"
+	"math"
 	"sort"
 	"strconv"
 	"unsafe"
@@ -715,10 +716,19 @@ func SetBytesOptions(json []byte, path string, value interface{},
 		res, err = set(jstr, path, strconv.FormatUint(uint64(v), 10),
 			false, false, optimistic, inplace)
 	case float32:
-		res, err = set(jstr, path, strconv.FormatFloat(float64(v), 'f', -1, 64),
+		f := float64(v)
+		if math.IsNaN(f) || math.IsInf(f, 0) {
+			_, merr := jsongo.Marshal(f)
+			return nil, merr
+		}
+		res, err = set(jstr, path, strconv.FormatFloat(f, 'f', -1, 64),
 			false, false, optimistic, inplace)
 	case float64:
-		res, err = set(jstr, path, strconv.FormatFloat(float64(v), 'f', -1, 64),
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			_, merr := jsongo.Marshal(v)
+			return nil, merr
+		}
+		res, err = set(jstr, path, strconv.FormatFloat(v, 'f', -1, 64),
 			false, false, optimistic, inplace)
 	}
 	if err == errNoChange {
